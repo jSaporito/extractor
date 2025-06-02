@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-"""
-Network Configuration Data Extractor
-=====================================
-
-Clean noise text from obs column, extract data based on mandatory fields 
-by product group, and export to CSV/Excel.
-
-Usage:
-    python network_extractor.py input.csv -o output.csv
-    python network_extractor.py input.csv -o output.xlsx --excel
-"""
-
 import pandas as pd
 import re
 import sys
@@ -19,10 +6,8 @@ from typing import Dict, List, Optional, Any
 
 
 class NetworkConfigExtractor:
-    """Extract network configuration data based on product group requirements"""
     
     def __init__(self):
-        # Regex patterns for data extraction
         self.ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?\b'
         self.vlan_pattern = r'(?:VLAN|vlan)[:\s]*(\d+)'
         self.mac_pattern = r'(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}'
@@ -125,10 +110,8 @@ class NetworkConfigExtractor:
         if not text or pd.isna(text):
             return ""
         
-        # Convert to string and normalize
         clean_text = str(text).replace('\r\n', '\n').replace('\r', '\n')
         
-        # Remove noise patterns
         noise_patterns = [
             r'-{10,}',  # Long dashes
             r'={10,}',  # Long equals
@@ -147,7 +130,6 @@ class NetworkConfigExtractor:
         for pattern in noise_patterns:
             clean_text = re.sub(pattern, ' ', clean_text, flags=re.MULTILINE | re.IGNORECASE)
         
-        # Clean up whitespace
         clean_text = re.sub(r'\n\s*\n\s*\n+', '\n\n', clean_text)  # Multiple blank lines
         clean_text = re.sub(r'[ \t]+', ' ', clean_text)  # Multiple spaces
         clean_text = clean_text.strip()
@@ -159,12 +141,8 @@ class NetworkConfigExtractor:
         if not text:
             return None
         
-        # Define extraction patterns for different field types
         patterns = {
-            # Network identifiers
             "designador": [r'(?:DESIGNADOR|Designador)[:\s]*(.*?)(?=\n|$)'],
-            
-            # IP addresses
             "ip_privado": [r'(?:IPPRIVADO|IP PRIVADO)[:\s]*((?:\d+\..*?\n?)*)', 
                           r'(?:Private IP|PRIVATE)[:\s]*((?:\d+\..*?\n?)*)'],
             "ip_publico": [r'(?:IPPUBLICO|IP PUBLICO)[:\s]*((?:\d+\..*?\n?)*)',
@@ -175,18 +153,15 @@ class NetworkConfigExtractor:
                         r'(?:Network|NETWORK)[:\s]*((?:\d+\..*?\n?)*)'],
             "fixed_ip": [r'(?:IP FIXO|Fixed IP)[:\s]*([0-9.]+(?:/\d+)?)'],
             
-            # VLAN
             "vlan": [r'(?:VLAN)[:\s]*(\d+)', r'(?:vlan)[:\s]*(\d+)'],
             "vlan_config": [r'(?:VLAN)[:\s]*(\d+)', r'(?:vlan)[:\s]*(\d+)'],
             
-            # PPPoE
             "pppoe_user": [r'(?:USER PPPOE|PPPoE USER)[:\s]*([\w_]+)',
                           r'(?:Username)[:\s]*([\w_]+)'],
             "username": [r'(?:USER PPPOE|PPPoE USER|Username)[:\s]*([\w_]+)'],
             "login_pppoe": [r'(?:USER PPPOE|PPPoE USER|Username)[:\s]*([\w_]+)'],
             "pppoe_password": [r'(?:SENHA|Password)[:\s]*([^\s\n]+)'],
             
-            # Hardware info
             "serial_code": [r'(?:Serial|SN|SERNUM)[:\s=]*([0-9A-Fa-f]+)',
                            r'(?:serial_code)[:\s]*([^\s\n]+)'],
             "serial": [r'(?:Serial|SN|SERNUM)[:\s=]*([0-9A-Fa-f]+)'],
@@ -198,7 +173,6 @@ class NetworkConfigExtractor:
             "terminal_type": [r'(?:Terminal Type)[:\s]*([^\n\t]+)'],
             "onu_model": [r'(?:ONU Model|Model)[:\s]*([^\n\t]+)'],
             
-            # Network equipment
             "cpe": [r'(?:CPE)[:\s]*([^\n\t]+)', 
                    r'(?:Router)[:\s]*([^\n\t]+)',
                    r'(?:Equipment)[:\s]*([^\n\t]+)'],
@@ -206,7 +180,7 @@ class NetworkConfigExtractor:
             "router": [r'(?:Router)[:\s]*([^\n\t]+)'],
             "onu": [r'(?:ONU)[:\s]*([^\n\t]+)'],
             
-            # Network config
+            
             "interface_1": [r'(?:Interface|Port)[:\s]*([^\n\t]+)',
                            r'(?:interface_1)[:\s]*([^\n\t]+)'],
             "interface": [r'(?:Interface|Port)[:\s]*([^\n\t]+)'],
@@ -221,14 +195,14 @@ class NetworkConfigExtractor:
             "prefixes": [r'(?:Prefixes|Routes)[:\s]*([^\n]+)'],
             "routes": [r'(?:Routes|Prefixes)[:\s]*([^\n]+)'],
             
-            # Location/POP
+            
             "pop_description": [r'(?:POP|Location)[:\s]*([^\n]+)',
                                r'(?:pop_description)[:\s]*([^\n]+)'],
             "pop": [r'(?:POP|Location)[:\s]*([^\n]+)'],
             "location": [r'(?:Location|POP)[:\s]*([^\n]+)'],
             "olt_info": [r'(?:OLT)[:\s-]*([^\n]+)', r'(?:NE\s+)([^\n]+)'],
             
-            # WiFi
+            
             "wifi_ssid": [r'(?:SSID|WiFi SSID)[:\s]*([^\n]+)',
                          r'(?:wifi_ssid)[:\s]*([^\n]+)'],
             "ssid": [r'(?:SSID)[:\s]*([^\n]+)'],
@@ -236,10 +210,8 @@ class NetworkConfigExtractor:
                              r'(?:wifi_passcode)[:\s]*([^\n]+)'],
             "wifi_password": [r'(?:WiFi Password|WiFi Pass)[:\s]*([^\n]+)'],
             
-            # Rate/Bandwidth
             "rate": [r'(?:RATE)[:\s]*([^\n]+)'],
             
-            # Other
             "chamado": [r'(?:CHAMADO)[:\s]*([^\n]+)'],
         }
         
@@ -264,7 +236,6 @@ class NetworkConfigExtractor:
         return None
     
     def extract_for_product_group(self, obs_text: str, product_group: str) -> Dict[str, Any]:
-        """Extract data based on product group mandatory fields"""
         if not obs_text or pd.isna(obs_text) or product_group not in self.product_groups:
             return {}
         

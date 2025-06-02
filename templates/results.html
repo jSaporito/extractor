@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Results - Network Data Extractor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="fw-bold text-primary">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Processing Results
+                </h2>
+                <p class="text-muted mb-0">Task ID: {{ task_id }}</p>
+            </div>
+            <a href="/" class="btn btn-outline-primary">
+                <i class="fas fa-plus me-2"></i>Process Another File
+            </a>
+        </div>
+
+        <!-- Summary Cards -->
+        {% if status.summary %}
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card metrics-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-database fa-2x mb-2"></i>
+                        <h3 class="fw-bold">{{ status.summary.total_rows }}</h3>
+                        <p class="mb-0">Total Records</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-success text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-check-circle fa-2x mb-2"></i>
+                        <h3 class="fw-bold">{{ status.summary.complete_rows }}</h3>
+                        <p class="mb-0">Complete Records</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-info text-white h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-percentage fa-2x mb-2"></i>
+                        <h3 class="fw-bold">{{ "%.1f"|format(status.summary.avg_completion) }}%</h3>
+                        <p class="mb-0">Avg Completion</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-warning text-dark h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-tags fa-2x mb-2"></i>
+                        <h3 class="fw-bold">{{ status.summary.product_groups }}</h3>
+                        <p class="mb-0">Product Groups</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Charts -->
+        {% if status.chart_data and status.chart_data.chart_b64 %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Data Analysis Charts
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container text-center">
+                    <img src="data:image/png;base64,{{ status.chart_data.chart_b64 }}" 
+                         class="img-fluid" alt="Data Analysis Chart">
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Completeness Data Table -->
+        {% if status.chart_data and status.chart_data.completeness_data %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table me-2"></i>
+                    Completeness by Product Group
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Product Group</th>
+                                <th>Record Count</th>
+                                <th>Avg Completeness</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in status.chart_data.completeness_data %}
+                            <tr>
+                                <td>{{ item.Product_Group }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ item.Record_Count }}</span>
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar 
+                                            {% if item.Avg_Completion > 80 %}bg-success
+                                            {% elif item.Avg_Completion > 60 %}bg-warning
+                                            {% else %}bg-danger{% endif %}"
+                                             style="width: {{ item.Avg_Completion|round(1) }}%">
+                                            {{ "%.1f"|format(item.Avg_Completion) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if item.Avg_Completion > 80 %}
+                                        <span class="badge bg-success">Excellent</span>
+                                    {% elif item.Avg_Completion > 60 %}
+                                        <span class="badge bg-warning">Good</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Needs Work</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Download Section -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-download me-2"></i>
+                    Download Results
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="d-grid">
+                            <a href="/download/{{ status.csv_file.split('/')[-1] }}" 
+                               class="btn btn-outline-success btn-lg">
+                                <i class="fas fa-file-csv fa-2x d-block mb-2"></i>
+                                Download CSV
+                                <small class="d-block text-muted">Processed data in CSV format</small>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="d-grid">
+                            <a href="/download/{{ status.excel_file.split('/')[-1] }}" 
+                               class="btn btn-outline-primary btn-lg">
+                                <i class="fas fa-file-excel fa-2x d-block mb-2"></i>
+                                Download Excel
+                                <small class="d-block text-muted">With summary sheet included</small>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr class="my-3">
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            Processing completed: {{ status.end_time.strftime('%Y-%m-%d %H:%M:%S') if status.end_time else 'Unknown' }}
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            <i class="fas fa-stopwatch me-1"></i>
+                            Total time: {{ status.elapsed_time if status.elapsed_time else 'Unknown' }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Processing Info -->
+        <div class="card mt-4 border-info">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-info-circle me-2"></i>Processing Information
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>Files Generated:</strong>
+                        <ul class="list-unstyled mt-2">
+                            <li><i class="fas fa-file-csv text-success me-2"></i>Processed CSV</li>
+                            <li><i class="fas fa-file-excel text-primary me-2"></i>Excel with Summary</li>
+                            <li><i class="fas fa-chart-line text-warning me-2"></i>Analysis Charts</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Data Quality:</strong>
+                        <ul class="list-unstyled mt-2">
+                            <li><i class="fas fa-check text-success me-2"></i>Text cleaning applied</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Field extraction completed</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Validation performed</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Output Includes:</strong>
+                        <ul class="list-unstyled mt-2">
+                            <li><i class="fas fa-database text-info me-2"></i>Original data</li>
+                            <li><i class="fas fa-extract text-info me-2"></i>Extracted fields</li>
+                            <li><i class="fas fa-check-circle text-info me-2"></i>Validation metrics</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Results page loaded for task: {{ task_id }}');
+    
+    document.querySelectorAll('a[href^="/download/"]').forEach(function(link) {
+        link.addEventListener('click', function() {
+            const icon = this.querySelector('i');
+            const originalClass = icon.className;
+            icon.className = 'fas fa-spinner fa-spin fa-2x d-block mb-2';
+            
+            setTimeout(function() {
+                icon.className = originalClass;
+            }, 2000);
+        });
+    });
+});
+</script>
+{% endblock %}
