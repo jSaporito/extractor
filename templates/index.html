@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-bold text-primary">
+                <i class="fas fa-extract me-3"></i>
+                Network Data Extractor
+            </h1>
+            <p class="lead text-muted">
+                Upload your CSV file to extract and analyze network configuration data
+            </p>
+        </div>
+
+        <!-- Features -->
+        <div class="row mb-5">
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-upload feature-icon"></i>
+                <h5>Easy Upload</h5>
+                <p class="text-muted">Drag & drop or browse to upload your CSV files</p>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-cogs feature-icon"></i>
+                <h5>Smart Processing</h5>
+                <p class="text-muted">Automatic chunking and threading for large files</p>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-chart-bar feature-icon"></i>
+                <h5>Visual Analytics</h5>
+                <p class="text-muted">Real-time charts and completion metrics</p>
+            </div>
+        </div>
+
+        <!-- Upload Form -->
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-5">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="upload-area" id="uploadArea">
+                        <i class="fas fa-cloud-upload-alt fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">Drop your CSV file here</h4>
+                        <p class="text-muted mb-3">or click to browse</p>
+                        <input type="file" class="form-control d-none" id="fileInput" name="file" accept=".csv" required>
+                        <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-folder-open me-2"></i>Browse Files
+                        </button>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg w-100" id="uploadBtn">
+                            <i class="fas fa-play me-2"></i>Start Processing
+                        </button>
+                        <!-- Debug button - remove in production -->
+                        <button type="button" class="btn btn-outline-info mt-2 w-100" onclick="debugFileInput()">
+                            <i class="fas fa-bug me-2"></i>Debug File Selection
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Progress Section -->
+                <div class="progress-container" id="progressContainer">
+                    <hr class="my-4">
+                    <h5>Processing Status</h5>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span id="statusText">Initializing...</span>
+                        <span class="status-badge badge bg-info" id="statusBadge">Processing</span>
+                    </div>
+                    
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             id="progressBar" role="progressbar" style="width: 0%">
+                            <span id="progressText">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-clock me-1"></i>
+                                Elapsed: <span id="elapsedTime">0s</span>
+                            </small>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <small class="text-muted">
+                                Task ID: <span id="taskId">-</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Requirements -->
+        <div class="card mt-4 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <i class="fas fa-info-circle me-2"></i>Requirements
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li>CSV file must contain <strong>'obs'</strong> and <strong>'product_group'</strong> columns</li>
+                    <li>Maximum file size: 100MB</li>
+                    <li>Files larger than 1000 rows will be processed in chunks</li>
+                    <li>Processing time depends on file size and data complexity</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTaskId = null;
+let statusInterval = null;
+
+// Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing event handlers...');
+    
+    // Get elements
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const uploadForm = document.getElementById('uploadForm');
+    
+    console.log('Upload area:', uploadArea);
+    console.log('File input:', fileInput);
+    console.log('Upload form:', uploadForm);
+    
+    if (!uploadArea || !fileInput || !uploadForm) {
+        console.error('Required elements not found!');
+        return;
+    }
+    
+    // File upload handling
+    uploadArea.addEventListener('click', function(e) {
+        // Prevent triggering when clicking on buttons inside the upload area
+        if (e.target.tagName !== 'BUTTON') {
+            fileInput.click();
+        }
+    });
+
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.name.toLowerCase().endsWith('.csv')) {
+                updateUploadArea(file.name);
+            } else {
+                alert('Please select a CSV file');
+                e.target.value = ''; // Reset the input
+            }
+        }
+    });
+
+    // Drag and drop handling
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].name.toLowerCase().endsWith('.csv')) {
+            // Create a new FileList-like object
+            const dt = new DataTransfer();
+            dt.items.add(files[0]);
+            fileInput.files = dt.files;
+            updateUploadArea(files[0].name);
+        } else {
+            alert('Please drop a CSV file');
+        }
+    });
+
+    // Form submission
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        console.log('Form submitted');
+        console.log('File input element:', fileInput);
+        console.log('Files property:', fileInput ? fileInput.files : 'No input element');
+        console.log('Files length:', fileInput && fileInput.files ? fileInput.files.length : 'No files');
+        
+        if (!fileInput) {
+            alert('Error: File input element not found');
+            return;
+        }
+        
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please select a CSV file first');
+            return;
+        }
+        
+        const selectedFile = fileInput.files[0];
+        console.log('Selected file:', selectedFile);
+        console.log('File name:', selectedFile.name);
+        console.log('File type:', selectedFile.type);
+        
+        if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+            alert('Please select a CSV file (current file: ' + selectedFile.name + ')');
+            return;
+        }
+        
+        console.log('File validation passed, creating FormData...');
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        
+        // Show progress container
+        document.getElementById('progressContainer').style.display = 'block';
+        document.getElementById('uploadBtn').disabled = true;
+        document.getElementById('uploadBtn').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+        
+        // Upload file
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                currentTaskId = data.task_id;
+                document.getElementById('taskId').textContent = currentTaskId;
+                document.getElementById('statusText').textContent = 'Upload successful, starting processing...';
+                startStatusPolling();
+            } else {
+                alert('Upload failed: ' + (data.error || 'Unknown error'));
+                resetForm();
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            alert('Upload error: ' + error.message);
+            resetForm();
+        });
+    });
+    
+    console.log('Event handlers initialized successfully');
+});
+
+function updateUploadArea(filename) {
+    console.log('Updating upload area with filename:', filename);
+    const uploadArea = document.getElementById('uploadArea');
+    uploadArea.innerHTML = `
+        <i class="fas fa-file-csv fa-4x text-success mb-3"></i>
+        <h4 class="text-success">File Selected</h4>
+        <p class="text-muted mb-3">${filename}</p>
+        <button type="button" class="btn btn-outline-secondary" onclick="changeFile()">
+            <i class="fas fa-edit me-2"></i>Change File
+        </button>
+    `;
+}
+
+function changeFile() {
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) {
+        fileInput.click();
+    }
+}
+
+function startStatusPolling() {
+    statusInterval = setInterval(function() {
+        if (currentTaskId) {
+            fetch(`/status/${currentTaskId}`)
+            .then(response => response.json())
+            .then(data => {
+                updateStatus(data);
+            })
+            .catch(error => {
+                console.error('Status polling error:', error);
+            });
+        }
+    }, 1000);
+}
+
+function updateStatus(data) {
+    document.getElementById('statusText').textContent = data.message || 'Processing...';
+    document.getElementById('elapsedTime').textContent = data.elapsed_time || '0s';
+    
+    const progress = data.progress || 0;
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const statusBadge = document.getElementById('statusBadge');
+    
+    progressBar.style.width = progress + '%';
+    progressText.textContent = Math.round(progress) + '%';
+    
+    // Update status badge
+    if (data.status === 'completed') {
+        statusBadge.className = 'status-badge badge bg-success';
+        statusBadge.textContent = 'Completed';
+        progressBar.classList.remove('progress-bar-animated');
+        clearInterval(statusInterval);
+        
+        // Redirect to results page
+        setTimeout(() => {
+            window.location.href = `/results/${currentTaskId}`;
+        }, 2000);
+        
+    } else if (data.status === 'error') {
+        statusBadge.className = 'status-badge badge bg-danger';
+        statusBadge.textContent = 'Error';
+        progressBar.classList.remove('progress-bar-animated');
+        progressBar.classList.add('bg-danger');
+        clearInterval(statusInterval);
+        
+        setTimeout(resetForm, 3000);
+        
+    } else {
+        statusBadge.className = 'status-badge badge bg-info';
+        statusBadge.textContent = 'Processing';
+    }
+}
+
+function resetForm() {
+    document.getElementById('progressContainer').style.display = 'none';
+    const uploadBtn = document.getElementById('uploadBtn');
+    uploadBtn.disabled = false;
+    uploadBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Processing';
+    currentTaskId = null;
+    
+    // Reset upload area
+    document.getElementById('uploadArea').innerHTML = `
+        <i class="fas fa-cloud-upload-alt fa-4x text-muted mb-3"></i>
+        <h4 class="text-muted">Drop your CSV file here</h4>
+        <p class="text-muted mb-3">or click to browse</p>
+        <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+            <i class="fas fa-folder-open me-2"></i>Browse Files
+        </button>
+    `;
+    
+    document.getElementById('fileInput').value = '';
+}
+
+function debugFileInput() {
+    const fileInput = document.getElementById('fileInput');
+    console.log('=== DEBUG FILE INPUT ===');
+    console.log('Element exists:', !!fileInput);
+    console.log('Files property:', fileInput ? fileInput.files : 'N/A');
+    console.log('Files length:', fileInput && fileInput.files ? fileInput.files.length : 'N/A');
+    
+    if (!fileInput) {
+        alert('Error: File input element not found! Check DOM structure.');
+        return;
+    }
+    
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        console.log('File name:', file.name);
+        console.log('File size:', file.size);
+        console.log('File type:', file.type);
+        console.log('Is CSV:', file.name.toLowerCase().endsWith('.csv'));
+        alert(`File selected: ${file.name}\nSize: ${file.size} bytes\nType: ${file.type}\nIs CSV: ${file.name.toLowerCase().endsWith('.csv')}`);
+    } else {
+        console.log('No file selected');
+        alert('No file selected. Please select a file first.');
+    }
+}
+
+// Global function for the debug button onclick
+window.debugFileInput = debugFileInput;
+</script>
+{% endblock %}
